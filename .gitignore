@@ -1,0 +1,90 @@
+# ====================
+# Node.js
+# ====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ====================
+# Environment Variables
+# ====================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# ====================
+# Build Outputs
+# ====================
+/dist/
+/build/
+.next/
+out/
+*.tsbuildinfo
+
+# ====================
+# Prisma
+# ====================
+/generated/prisma/
+/src/generated/prisma/
+prisma/*.db
+prisma/*.sqlite
+prisma/*.sqlite3
+
+# ====================
+# Uploads / Public Files
+# ====================
+/src/public/
+/public/
+/public/files/
+/uploads/
+/temp/
+
+# ====================
+# IDE / Editor Files
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.iml
+
+# ====================
+# Logs
+# ====================
+logs/
+*.log
+.pm2/
+
+# ====================
+# Testing / Coverage
+# ====================
+coverage/
+.nyc_output/
+.coveralls.yml
+
+# ====================
+# Temporary Files
+# ====================
+*.tmp
+*.temp
+.cache/
+.eslintcache
+*.pid
+*.seed
+*.pid.lock
+
+# ====================
+# OS Specific
+# ====================
+.DS_Store
+Thumbs.db
+desktop.ini
