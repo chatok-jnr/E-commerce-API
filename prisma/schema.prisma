@@ -97,7 +97,7 @@ model Product{
   owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   images ProductImage[]
   cartItems CartItem[]
-  orderItems OrderItem[]
+  orderItems OrderItem
 
   @@index([ownerId])
   @@map("products")
