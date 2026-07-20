@@ -27,9 +27,14 @@ model User{
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  deletedAt DateTime?
+
   roles UserRole[]
   refresh_tokens RefreshToken[]
   products Product[]
+  cart Cart?
+  orders Order[]
+
 
   @@map("users")
 }
@@ -54,7 +59,7 @@ model UserRole{
 model RefreshToken {
   id String @id @default(uuid())
   userId String
-  token String @unique
+  token String @unique @db.Text
   expiresAt DateTime
 
   revoked Boolean @default(false)
@@ -66,13 +71,14 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// model Category{
-//   id String @id @default(uuid())
-//   name String
-//   description String?
+model Category{
+  id String @id @default(uuid())
+  name String
+  description String?
 
-//   createdAt DateTime @default(now())
-// }
+  createdAt DateTime @default(now())
+  products Product[]
+}
 
 model Product{
   id String @id @default(uuid())
@@ -81,15 +87,17 @@ model Product{
   price Decimal @db.Decimal(10, 2)
   stock Int @default(0)
   ownerId String
-  //categoryId String
-
-  //category Category @relation(fields: [categoryId], references: [id])
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  categoryId String
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image ProductImage[]
+
+  category Category @relation(fields: [categoryId], references: [id])
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  images ProductImage[]
+  cartItems CartItem[]
+  orderItems OrderItem[]
 
   @@index([ownerId])
   @@map("products")
@@ -108,4 +116,110 @@ model ProductImage{
 
   @@index([productId])
   @@map("product_images")
+}
+
+model Cart{
+  id String @id @default(uuid())
+  userId String? @unique
+  sessionId String? @unique
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem{
+  id String @id @default(uuid())
+  cartId String
+  productId String
+  quantity Int @default(1)
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+
+  @@map("cart_items")
+}
+model Order{
+  id String @id @default(uuid())
+  customerId String
+  totalAmount Decimal @db.Decimal(10, 2)
+  status OrderStatus @default(PENDING)
+
+  customer User @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items OrderItem[]
+  payment Payment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+enum OrderStatus{
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+model OrderItem{
+  id String @id @default(uuid())
+  orderId String
+  productId String
+  quantity Int
+  price Decimal @db.Decimal(10, 2)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Payment {
+  id      String        @id @default(uuid())
+  orderId String        @unique
+  order   Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  stripeCheckoutSessionId String  @unique
+  stripePaymentIntentId   String? @unique
+
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("usd")
+  status   PaymentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model WebHookEvent{
+  id String @id @default(uuid())
+  stripeEventId String @unique
+  type String
+  processedAt DateTime @default(now())
+
+  @@map("webhook_events")
 }
