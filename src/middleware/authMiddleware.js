@@ -66,6 +66,7 @@ export const requiredRole = (...allowedRoles) => {
                 message: 'Please log in to perform this operation'
             });
         }
+        
 
         const userRoles = req.user.roles.map(r => r.role);
         const hasPermission = allowedRoles.some(role => userRoles.includes(role));
