@@ -1,7 +1,8 @@
 import bcrypt from "bcrypt";
-import crypto from "crypto";
+import crypto, { hash } from "crypto";
 import {prisma} from "../config/db.js";
 import { genAccessToken, genRefreshToken } from "../utils/jwtService.js";
+import { error } from "console";
 
 export const register = async (req, res) => {
     try{
@@ -199,6 +200,38 @@ export const login = async (req, res) => {
             status: 'failed',
             error: (process.env.NODE_ENV === "development") ? e.message : "Internal Server Error",
             path: "/auth/login",
+            method: "post"
+        });
+    }
+}
+
+export const logout = async (req, res) => {
+    try {
+        const refresh_token = req.cookies.refresh_token;
+
+        if(refresh_token) {
+            const hashedToken = crypto.createHash("sha256").update(refresh_token).digest("hex");
+        
+            await prisma.refreshToken.updateMany({
+                where: {
+                    token: hashedToken,
+                    revoked: false
+                },
+                data:{
+                    revoked: true
+                }
+            });
+        }
+
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+    } catch(e) {
+        console.log(e);
+
+        return res.status(500).json({
+            status:'failed',
+            error: (process.env.NODE_ENV === 'development' ? e.message : "Internal server error"),
+            path:"/auth/logout",
             method: "post"
         });
     }
