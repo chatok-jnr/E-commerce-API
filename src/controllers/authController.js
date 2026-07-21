@@ -3,6 +3,7 @@ import crypto, { hash } from "crypto";
 import {prisma} from "../config/db.js";
 import { genAccessToken, genRefreshToken } from "../utils/jwtService.js";
 import { error } from "console";
+import jwt from "jsonwebtoken";
 
 export const register = async (req, res) => {
     try{
@@ -242,7 +243,7 @@ export const logout = async (req, res) => {
     }
 }
 
-export const refreshToken = async (req, res) => {
+export const refresh = async (req, res) => {
     try{
         const incomingToken = req.cookies.refresh_token;
 
@@ -256,7 +257,11 @@ export const refreshToken = async (req, res) => {
         let decode
         try {
             decode = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
+            console.log(`Debug = ${decode.id}`);
         } catch(e) {
+
+            console.log(e);
+
             return res.status(401).json({
                 status:'failed',
                 message:'Invalid or expired refresh token, please log in'
