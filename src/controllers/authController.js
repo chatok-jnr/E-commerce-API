@@ -225,14 +225,115 @@ export const logout = async (req, res) => {
 
         res.clearCookie("access_token");
         res.clearCookie("refresh_token");
+
+        return res.status(200).json({
+            status:'success',
+            message:'Logged out successfully'
+        });
     } catch(e) {
-        console.log(e);
+        console.error(e);
 
         return res.status(500).json({
             status:'failed',
             error: (process.env.NODE_ENV === 'development' ? e.message : "Internal server error"),
             path:"/auth/logout",
-            method: "post"
+            method: "POST"
+        });
+    }
+}
+
+export const refreshToken = async (req, res) => {
+    try{
+        const incomingToken = req.cookies.refresh_token;
+
+        if(!incomingToken) {
+            return res.status(401).json({
+                status:'failed',
+                message:'Refresh token missing, please log in'
+            });
+        }
+
+        let decode
+        try {
+            decode = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
+        } catch(e) {
+            return res.status(401).json({
+                status:'failed',
+                message:'Invalid or expired refresh token, please log in'
+            });
+        }
+
+        const hashedIncoming = crypto.createHash("sha256").update(incomingToken).digest("hex");
+
+        const storedToken = await prisma.refreshToken.findUnique({
+            where:{
+                token: hashedIncoming
+            }
+        });
+
+        if(!storedToken || storedToken.revoked || storedToken.expiresAt < new Date()) {
+            if(storedToken) {
+                await prisma.refreshToken.updateMany({
+                    where: {userId: storedToken.userId},
+                    data: {revoked: true}
+                });
+            }
+
+            return res.status(401).json({
+                status:'failed',
+                message:'Invalid session, please login in again'
+            });
+        }
+
+        // Rotat: revoke old, issue new
+        const newAccessToken = genAccessToken(decode.id);
+        const newRefreshToken = genRefreshToken(decode.id);
+        const hashedNewToken = crypto.createHash("sha256").update(newRefreshToken).digest("hex");
+
+        const newExpiresAt = new Date();
+        newExpiresAt.setDate(newExpiresAt.getDate() + 7);
+
+        await prisma.$transaction([
+            prisma.refreshToken.update({
+                where: {id: storedToken.id},
+                data: {revoked: true}
+            }),
+            prisma.refreshToken.create({
+                data: {
+                    userId: decode.id,
+                    token: hashedNewToken,
+                    expiresAt: newExpiresAt
+                }
+            })
+        ]);
+
+        res.cookie("access_token", newAccessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: "strict",
+            maxAge: 15 * 60 * 1000
+        });
+
+        res.cookie("refresh_token", newRefreshToken, {
+            httpOnly:true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        return res.status(200).json({
+            status:'success',
+            message: 'Token refreshed'
+        });
+    } catch(e) {
+
+        console.error(e);
+
+        return  res.status(500).json({
+            status:'failed',
+            error: (process.env.NODE_ENV === 'development' ? e.message : "Internal Server Error"),
+            path:"/auth/refresh",
+            method:"POST"
         });
     }
 }
