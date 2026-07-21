@@ -62,3 +62,42 @@ export const updateMe = async (req, res) => {
         });
     }
 }
+
+export const uploadMyProfileImage = async (req, res) => {
+    try{
+        if(!req.file) {
+            return res.status(400).json({
+                status: "failed",
+                message: "No image file provided"
+            });
+        }
+
+        const imageUrl = `/upload/profile-images/${req.file.filename}`;
+
+        const user = await prisma.user.update({
+            where: {
+                id: req.user.id
+            },
+            data:{
+                profileImage: imageUrl
+            }
+        });
+
+        const {password, deleteAt, ...safeUser} = user;
+
+        return res.status(200).json({
+            status:'success',
+            message: 'Profile image updated',
+            user: safeUser
+        });
+    } catch(e) {
+        console.error(e);
+
+        return res.status(500).json({
+            status:'failed',
+            message: process.env.NODE_ENV === 'production'
+                ? "Internal server error"
+                : e.message
+        });
+    } 
+}
