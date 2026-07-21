@@ -73,7 +73,7 @@ model RefreshToken {
 
 model Category{
   id String @id @default(uuid())
-  name String
+  name String @unique
   description String?
 
   createdAt DateTime @default(now())
@@ -97,7 +97,7 @@ model Product{
   owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   images ProductImage[]
   cartItems CartItem[]
-  orderItems OrderItem
+  orderItems OrderItem[]
 
   @@index([ownerId])
   @@map("products")
