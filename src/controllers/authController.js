@@ -257,7 +257,6 @@ export const refresh = async (req, res) => {
         let decode
         try {
             decode = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
-            console.log(`Debug = ${decode.id}`);
         } catch(e) {
 
             console.log(e);
