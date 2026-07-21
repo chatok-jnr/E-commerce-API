@@ -1,10 +1,11 @@
 import express from "express";
 import {protect, requiredRole} from "../middleware/authMiddleware.js";
+import {createProduct} from "../controllers/productController.js";
+const router = express.Router();
 
-const router = express.Router();satisfies
 
-router.get("/", );
-router.get("/:id");
+router.post("/", protect, requiredRole("ADMIN"), createProduct);
+// router.get("/:id");
 
 
 export default router;

@@ -1,8 +1,11 @@
 import express from "express";
+import cookieParser from "cookie-parser";
+
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import categoreyRoutes from "./routes/categoryRoutes.js";
-import cookieParser from "cookie-parser";
+import productRoutes from "./routes/productRoutes.js";
+
 
 const app = express();
 
@@ -15,7 +18,8 @@ app.use(express.urlencoded());
 // Routes for endpoints
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
-app.use("/category", categoreyRoutes);
+app.use("/categories", categoreyRoutes);
+app.use("/products", productRoutes);
 
 const PORT = process.env.PORT || 3000;
 
