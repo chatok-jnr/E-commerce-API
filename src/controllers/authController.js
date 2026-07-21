@@ -98,7 +98,7 @@ export const register = async (req, res) => {
         return res.status(500).json({
             status: 'failed',
             error: (process.env.NODE_ENV === "development") ? e.message : "Internal Server Error",
-            path: "/auth",
+            path: "/auth/register",
             method: "post"
         });
     }
@@ -117,10 +117,16 @@ export const login = async (req, res) => {
         const user = await prisma.user.findUnique({
             where:{
                 email: email
+            },
+            include:{
+                roles: true
             }
         });
         
         if(!user) {
+
+            await bcrypt.compare(password, "$2b$10$CwTycUXWue0Thq9StjUM0uJ8Z6r4z6q6z9b0.f8g0G8p4kX5q5q5q");
+
             return res.status(400).json({
                 status:'failed',
                 message:'wrong credential'
@@ -171,14 +177,7 @@ export const login = async (req, res) => {
         });
         
         
-
-        const roles = await prisma.userRole.findMany({
-            where:{
-                userId: user.id
-            }
-        });
-
-        return res.status(201).json({
+        return res.status(200).json({
             status:'success',
             message:'Login successfull',
             user: {
@@ -190,23 +189,16 @@ export const login = async (req, res) => {
                dob: user.dob,
                createdAt: user.createdAt,
                updatedAt: user.updatedAt,
-               role: roles.map(r => r.role)
+               role: user.roles.map(r => r.role)
             }
         });
     } catch(e) {
         console.error(e);
 
-        if (e.code === 'P2002') {
-            return res.status(409).json({
-                status: 'failed',
-                message: "User with this email already exists"
-            });
-        }
-
         return res.status(500).json({
             status: 'failed',
             error: (process.env.NODE_ENV === "development") ? e.message : "Internal Server Error",
-            path: "/auth",
+            path: "/auth/login",
             method: "post"
         });
     }
