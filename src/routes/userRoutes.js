@@ -1,7 +1,7 @@
 import express from "express";
 import {getMe, updateMe, uploadMyProfileImage} from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";
-import { uploadPorudctImages, uploadProfileImage } from "../middleware/uploadMiddleware.js";
+import { uploadProfileImage } from "../middleware/uploadMiddleware.js";
 import { handleMulterError } from "../middleware/multerErrorHandler.js";
 const router = express.Router();
 

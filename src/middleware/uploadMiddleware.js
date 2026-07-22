@@ -43,7 +43,7 @@ export const uploadProfileImage = createUploader({
     prefix: (req) => req.user.id
 }).single("profileImage");
 
-export const uploadPorudctImages = createUploader({
+export const uploadProductImages = createUploader({
     folder: "product-images",
     prefix: (req) => req.params.productId || "product"
 }).array("images", 5); // Upto 5 images per request
