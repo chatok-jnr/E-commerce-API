@@ -6,10 +6,16 @@ import userRoutes from "./routes/userRoutes.js";
 import categoreyRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+
+import { stripeWebhook } from "./controllers/webhookController.js";
 
 const app = express();
 
 app.use(cookieParser());
+
+// This MUST be registered BEFORE express.json(), and needs express.raw()
+app.post("/webhooks/stripe", express.raw({ type: "application/json" }), stripeWebhook);
 
 // Middleware for parse req body
 app.use(express.json());
@@ -21,6 +27,7 @@ app.use("/users", userRoutes);
 app.use("/categories", categoreyRoutes);
 app.use("/products", productRoutes);
 app.use("/cart", cartRoutes);
+app.use("/orders", orderRoutes);
 
 const PORT = process.env.PORT || 3000;
 

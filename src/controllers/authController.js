@@ -1,32 +1,32 @@
 import bcrypt from "bcrypt";
 import crypto, { hash } from "crypto";
-import {prisma} from "../config/db.js";
+import { prisma } from "../config/db.js";
 import { genAccessToken, genRefreshToken } from "../utils/jwtService.js";
 import { error } from "console";
 import jwt from "jsonwebtoken";
 
 export const register = async (req, res) => {
-    try{
+    try {
 
-        const {name, email, password, profileImage, bio, dob} = req.body;
+        const { name, email, password, profileImage, bio, dob } = req.body;
 
-         // Checking if all of the required fieled is available or not?
-        if(!name || !email || !password) {
+        // Checking if all of the required fieled is available or not?
+        if (!name || !email || !password) {
             return res.status(400).json({
-                status:'failed',
-                message:"name, email, password required"
+                status: 'failed',
+                message: "name, email, password required"
             });
         }
 
         const isExist = await prisma.user.findUnique({
-            where:{
+            where: {
                 email: email
             }
         });
 
-        if(isExist) {
+        if (isExist) {
             return res.status(409).json({
-                message:"User with this email already exists"
+                message: "User with this email already exists"
             });
         }
 
@@ -36,7 +36,7 @@ export const register = async (req, res) => {
 
         // Save user in db
         const user = await prisma.user.create({
-            data:{
+            data: {
                 name: name,
                 email: email,
                 profileImage: profileImage,
@@ -44,13 +44,13 @@ export const register = async (req, res) => {
                 bio: bio,
                 dob: dob,
                 roles: {
-                    create: {role: "CUSTOMER"}
+                    create: { role: "CUSTOMER" }
                 }
             },
-            include:{roles:true}
+            include: { roles: true }
         });
-    
-        const {password: _, roles, ...safeUser} = user;
+
+        const { password: _, roles, ...safeUser } = user;
 
         const access_token = genAccessToken(user.id);
         const refresh_token = genRefreshToken(user.id);
@@ -60,34 +60,34 @@ export const register = async (req, res) => {
         expiresAt.setDate(expiresAt.getDate() + 7);
 
         await prisma.refreshToken.create({
-            data:{
+            data: {
                 userId: user.id,
                 token: hashedRefreshToken,
                 expiresAt: expiresAt
             }
         });
 
-        res.cookie("access_token",access_token, {
+        res.cookie("access_token", access_token, {
             httpOnly: true,
             secure: (process.env.NODE_ENV === 'development' ? false : true),
             maxAge: 15 * 60 * 1000
         });
 
-         res.cookie("refresh_token",refresh_token, {
+        res.cookie("refresh_token", refresh_token, {
             httpOnly: true,
             secure: (process.env.NODE_ENV === 'development' ? false : true),
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-    
+
         return res.status(201).json({
-            status:'success',
-            message:'Profile created successfully',
+            status: 'success',
+            message: 'Profile created successfully',
             user: {
                 ...safeUser,
                 role: roles.map(r => r.role)
             }
         });
-    } catch(e) {
+    } catch (e) {
         console.error(e);
 
         if (e.code === 'P2002') {
@@ -107,48 +107,103 @@ export const register = async (req, res) => {
 }
 
 export const login = async (req, res) => {
-    try{
-        const {email, password} = req.body;
-        if(!email || !password) {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
             return res.status(400).json({
-                status:'failed',
-                message:'email and password required'
+                status: 'failed',
+                message: 'email and password required'
             });
         }
 
         const user = await prisma.user.findUnique({
-            where:{
+            where: {
                 email: email
             },
-            include:{
+            include: {
                 roles: true
             }
         });
-        
-        if(!user) {
+
+        if (!user) {
 
             await bcrypt.compare(password, "$2b$10$CwTycUXWue0Thq9StjUM0uJ8Z6r4z6q6z9b0.f8g0G8p4kX5q5q5q");
 
             return res.status(400).json({
-                status:'failed',
-                message:'wrong credential'
+                status: 'failed',
+                message: 'wrong credential'
             });
         }
 
-        if(user.deletedAt !== null) {
+        if (user.deletedAt !== null) {
             return res.status(403).json({
-                status:'failed',
-                message:'This account no longer exists.'
+                status: 'failed',
+                message: 'This account no longer exists.'
             });
         }
 
         const isPassValid = await bcrypt.compare(password, user.password);
 
-        if(!isPassValid) {
+        if (!isPassValid) {
             return res.status(400).json({
-                status:'failed',
-                message:'wrong credential'
+                status: 'failed',
+                message: 'wrong credential'
             });
+        }
+
+        // Inside login, after password validation succeeds, before generating tokens:
+        const guestSessionId = req.cookies.cart_session;
+
+        if (guestSessionId) {
+            const guestCart = await prisma.cart.findFirst({
+                where: { sessionId: guestSessionId },
+                include: { items: true }
+            });
+
+            if (guestCart && guestCart.items.length > 0) {
+                let userCart = await prisma.cart.findFirst({
+                    where: { userId: user.id }
+                });
+
+                if (!userCart) {
+                    // No existing user cart — simplest case, just reassign the guest cart to this user
+                    userCart = await prisma.cart.update({
+                        where: { id: guestCart.id },
+                        data: { userId: user.id, sessionId: null }
+                    });
+                } else {
+                    // User already has their own cart — merge items, then discard the guest cart
+                    for (const guestItem of guestCart.items) {
+                        const existingItem = await prisma.cartItem.findUnique({
+                            where: {
+                                cartId_productId: {
+                                    cartId: userCart.id,
+                                    productId: guestItem.productId
+                                }
+                            }
+                        });
+
+                        if (existingItem) {
+                            await prisma.cartItem.update({
+                                where: { id: existingItem.id },
+                                data: { quantity: existingItem.quantity + guestItem.quantity }
+                            });
+                        } else {
+                            await prisma.cartItem.create({
+                                data: {
+                                    cartId: userCart.id,
+                                    productId: guestItem.productId,
+                                    quantity: guestItem.quantity
+                                }
+                            });
+                        }
+                    }
+
+                    await prisma.cart.delete({ where: { id: guestCart.id } });
+                }
+            }
+
+            res.clearCookie("cart_session");
         }
 
         const access_token = genAccessToken(user.id);
@@ -159,42 +214,42 @@ export const login = async (req, res) => {
         expiresAt.setDate(expiresAt.getDate() + 7);
 
         await prisma.refreshToken.create({
-            data:{
+            data: {
                 userId: user.id,
                 token: hashedRefreshToken,
                 expiresAt: expiresAt
             }
         });
 
-        res.cookie("access_token",access_token, {
+        res.cookie("access_token", access_token, {
             httpOnly: true,
             secure: (process.env.NODE_ENV === 'development' ? false : true),
             maxAge: 15 * 60 * 1000
         });
 
-         res.cookie("refresh_token",refresh_token, {
+        res.cookie("refresh_token", refresh_token, {
             httpOnly: true,
             secure: (process.env.NODE_ENV === 'development' ? false : true),
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
-        
-        
+
+
         return res.status(200).json({
-            status:'success',
-            message:'Login successfull',
+            status: 'success',
+            message: 'Login successfull',
             user: {
-               id: user.id,
-               name: user.name,
-               email: user.email,
-               bio: user.bio,
-               profileImage: user.profileImage,
-               dob: user.dob,
-               createdAt: user.createdAt,
-               updatedAt: user.updatedAt,
-               role: user.roles.map(r => r.role)
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                bio: user.bio,
+                profileImage: user.profileImage,
+                dob: user.dob,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+                role: user.roles.map(r => r.role)
             }
         });
-    } catch(e) {
+    } catch (e) {
         console.error(e);
 
         return res.status(500).json({
@@ -210,15 +265,15 @@ export const logout = async (req, res) => {
     try {
         const refresh_token = req.cookies.refresh_token;
 
-        if(refresh_token) {
+        if (refresh_token) {
             const hashedToken = crypto.createHash("sha256").update(refresh_token).digest("hex");
-        
+
             await prisma.refreshToken.updateMany({
                 where: {
                     token: hashedToken,
                     revoked: false
                 },
-                data:{
+                data: {
                     revoked: true
                 }
             });
@@ -228,64 +283,64 @@ export const logout = async (req, res) => {
         res.clearCookie("refresh_token");
 
         return res.status(200).json({
-            status:'success',
-            message:'Logged out successfully'
+            status: 'success',
+            message: 'Logged out successfully'
         });
-    } catch(e) {
+    } catch (e) {
         console.error(e);
 
         return res.status(500).json({
-            status:'failed',
+            status: 'failed',
             error: (process.env.NODE_ENV === 'development' ? e.message : "Internal server error"),
-            path:"/auth/logout",
+            path: "/auth/logout",
             method: "POST"
         });
     }
 }
 
 export const refresh = async (req, res) => {
-    try{
+    try {
         const incomingToken = req.cookies.refresh_token;
 
-        if(!incomingToken) {
+        if (!incomingToken) {
             return res.status(401).json({
-                status:'failed',
-                message:'Refresh token missing, please log in'
+                status: 'failed',
+                message: 'Refresh token missing, please log in'
             });
         }
 
         let decode
         try {
             decode = jwt.verify(incomingToken, process.env.JWT_REFRESH_SECRET);
-        } catch(e) {
+        } catch (e) {
 
             console.log(e);
 
             return res.status(401).json({
-                status:'failed',
-                message:'Invalid or expired refresh token, please log in'
+                status: 'failed',
+                message: 'Invalid or expired refresh token, please log in'
             });
         }
 
         const hashedIncoming = crypto.createHash("sha256").update(incomingToken).digest("hex");
 
         const storedToken = await prisma.refreshToken.findUnique({
-            where:{
+            where: {
                 token: hashedIncoming
             }
         });
 
-        if(!storedToken || storedToken.revoked || storedToken.expiresAt < new Date()) {
-            if(storedToken) {
+        if (!storedToken || storedToken.revoked || storedToken.expiresAt < new Date()) {
+            if (storedToken) {
                 await prisma.refreshToken.updateMany({
-                    where: {userId: storedToken.userId},
-                    data: {revoked: true}
+                    where: { userId: storedToken.userId },
+                    data: { revoked: true }
                 });
             }
 
             return res.status(401).json({
-                status:'failed',
-                message:'Invalid session, please login in again'
+                status: 'failed',
+                message: 'Invalid session, please login in again'
             });
         }
 
@@ -299,8 +354,8 @@ export const refresh = async (req, res) => {
 
         await prisma.$transaction([
             prisma.refreshToken.update({
-                where: {id: storedToken.id},
-                data: {revoked: true}
+                where: { id: storedToken.id },
+                data: { revoked: true }
             }),
             prisma.refreshToken.create({
                 data: {
@@ -319,25 +374,25 @@ export const refresh = async (req, res) => {
         });
 
         res.cookie("refresh_token", newRefreshToken, {
-            httpOnly:true,
+            httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: "strict",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
         return res.status(200).json({
-            status:'success',
+            status: 'success',
             message: 'Token refreshed'
         });
-    } catch(e) {
+    } catch (e) {
 
         console.error(e);
 
-        return  res.status(500).json({
-            status:'failed',
+        return res.status(500).json({
+            status: 'failed',
             error: (process.env.NODE_ENV === 'development' ? e.message : "Internal Server Error"),
-            path:"/auth/refresh",
-            method:"POST"
+            path: "/auth/refresh",
+            method: "POST"
         });
     }
 }
