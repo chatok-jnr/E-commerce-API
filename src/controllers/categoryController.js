@@ -1,211 +1,113 @@
-import {prisma} from "../config/db.js";
+import { prisma } from "../config/db.js";
+import { catchAsync } from "../utils/catchAsync.js";
+import { AppError } from "../utils/AppError.js";
 
-export const createCategory = async (req, res) => {
-    try{
-        
-       const {name, description} = req.body;
+export const createCategory = catchAsync(async (req, res) => {
+    const { name, description } = req.body;
 
-        if(!name) {
-            return res.status(400).json({
-                status: "Missing",
-                message: "A name is required"
-            });
-        }
-
-        const normalizedName = name.toUpperCase();
-
-        const isExist = await prisma.category.findUnique({
-            where: {
-                name: normalizedName
-            }
-        });
-
-        if(isExist) {
-            return res.status(409).json({
-                status:'Conflict',
-                message:'Category with this name already exist'
-            });
-        }
-
-        const category = await prisma.category.create({
-            data:{
-                name: normalizedName,
-                description: description
-            }
-        });
-
-        return res.status(201).json({
-            status:'success',
-            category            
-        });
-    } catch(e) {
-        console.error(e);
-
-        return res.status(500).json({
-            status:'failed',
-            error: process.env.NODE_ENV === 'production' 
-                ? "Internal server error"
-                : e.message
-        });
-    } 
-}
-
-export const getCategories = async (req, res) => {
-    try{
-        const categories = await prisma.category.findMany({
-        });
-
-        return res.status(200).json({
-            status:'success',
-            categories
-        });
-    } catch(e) {
-        console.error(e);
-
-        return res.status(500).json({
-            status:'failed',
-            message: process.env.NODE_ENV === 'production'
-                ? "Internal server error"
-                : e.message
-        });
+    if (!name) {
+        throw new AppError('A name is required', 400);
     }
-}
 
-export const getCategory = async(req, res) => {
-    try{
+    const normalizedName = name.toUpperCase();
 
-        const normalizedName = req.params.name.toUpperCase();
+    const isExist = await prisma.category.findUnique({
+        where: { name: normalizedName }
+    });
 
-        const category = await prisma.category.findUnique({
-            where:{
-                name: normalizedName
-            },
-            select:{
-                name: true,
-                description: true
-            }
-        });
-
-        if(!category) {
-            return res.status(404).json({
-                status:"Not found",
-                message:`Category with ${req.params.name} name is not found`
-            });
-        }
-
-        return res.status(200).json({
-            status:'success',
-            category
-        });
-    } catch(e) {
-        console.error(e);
-
-        return res.status(500).json({
-            status:'failed',
-            message:process.env.NODE_ENV === 'production'
-                ? "Internal server error"
-                : e.message
-        });
+    if (isExist) {
+        throw new AppError('Category with this name already exist', 409);
     }
-}
 
-export const updateCategory = async (req, res) => {
-    try {
-        const description = req.body.description;
-        if(!description) {
-            return res.status(400).json({
-                status:'failed',
-                message:'Missing Description'
-            });
-        }
+    const category = await prisma.category.create({
+        data: { name: normalizedName, description }
+    });
 
-        const normalizedName = req.params.name.toUpperCase();
-        const isExist = await prisma.category.findUnique({
-            where:{
-                name: normalizedName
-            }
-        });
+    return res.status(201).json({
+        status: 'success',
+        category
+    });
+});
 
-        if(!isExist) {
-            return res.status(404).json({
-                status:'failed',
-                message: `Category "${req.params.name}" not found`
-            });
-        }
+export const getCategories = catchAsync(async (req, res) => {
+    const categories = await prisma.category.findMany({});
 
-        await prisma.category.update({
-            where:{
-                name: normalizedName
-            },
-            data:{
-                description: description
-            }
-        });
+    return res.status(200).json({
+        status: 'success',
+        categories
+    });
+});
 
-        return res.status(200).json({
-            message:'Update successfully'
-        });
-    } catch(e) {
-        console.error(e);
+export const getCategory = catchAsync(async (req, res) => {
+    const normalizedName = req.params.name.toUpperCase();
 
-        return res.status(500).json({
-            status:'failed',
-            message:process.env.NODE_ENV === 'production'
-                ? "Internal server error"
-                : e.message
-        });
+    const category = await prisma.category.findUnique({
+        where: { name: normalizedName },
+        select: { name: true, description: true }
+    });
+
+    if (!category) {
+        throw new AppError(`Category with ${req.params.name} name is not found`, 404);
     }
-}
 
+    return res.status(200).json({
+        status: 'success',
+        category
+    });
+});
 
-export const deleteCategory = async(req, res) => {
-    try{
+export const updateCategory = catchAsync(async (req, res) => {
+    const { description } = req.body;
 
-       const normalizedName = req.params.name.toUpperCase();
-       
-       const category = await prisma.category.findUnique({
-            where:{
-                name: normalizedName
-            },
-            include:{
-                _count:{
-                    select: {products: true}
-                }
-            }
-       });
-
-       if(!category) {
-        return res.status(404).json({
-            status: 'failed',
-            message: `Category "${req.params.name}" not found`
-        });
-       }
-
-       if(category._count.products > 0) {
-        return res.status(409).json({
-            status:'failed',
-            message:`Cannot delete category "${category.name}" - it still has ${category._count.products} product(s) assigned. Reassign or delete them first.`
-        });
-       }
-
-       await prisma.category.delete({
-        where:{
-            name: normalizedName
-        }
-       });
-
-       return res.status(200).json({
-        status:'success',
-        message:`Category "${category.name}" deleted successfully`
-       });
-    } catch(e) {
-        console.error(e);
-
-        return res.status(500).json({
-            status:'failed',
-            messgae:process.env.NODE_ENV === 'production'
-                ? "Internal server error"
-                : e.message
-        });
+    if (!description) {
+        throw new AppError('Missing Description', 400);
     }
-}
+
+    const normalizedName = req.params.name.toUpperCase();
+
+    const isExist = await prisma.category.findUnique({
+        where: { name: normalizedName }
+    });
+
+    if (!isExist) {
+        throw new AppError(`Category "${req.params.name}" not found`, 404);
+    }
+
+    await prisma.category.update({
+        where: { name: normalizedName },
+        data: { description }
+    });
+
+    return res.status(200).json({
+        status: 'success',
+        message: 'Update successfully'
+    });
+});
+
+export const deleteCategory = catchAsync(async (req, res) => {
+    const normalizedName = req.params.name.toUpperCase();
+
+    const category = await prisma.category.findUnique({
+        where: { name: normalizedName },
+        include: { _count: { select: { products: true } } }
+    });
+
+    if (!category) {
+        throw new AppError(`Category "${req.params.name}" not found`, 404);
+    }
+
+    // Block deletion if products still reference this category
+    if (category._count.products > 0) {
+        throw new AppError(
+            `Cannot delete category "${category.name}" - it still has ${category._count.products} product(s) assigned. Reassign or delete them first.`,
+            409
+        );
+    }
+
+    await prisma.category.delete({ where: { name: normalizedName } });
+
+    return res.status(200).json({
+        status: 'success',
+        message: `Category "${category.name}" deleted successfully`
+    });
+});

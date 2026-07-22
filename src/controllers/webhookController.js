@@ -1,11 +1,12 @@
 import Stripe from "stripe";
-import {prisma} from "../config/db.js";
+import { prisma } from "../config/db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-export const stripeWebhook = async(req, res) => {
+export const stripeWebhook = async (req, res) => {
     const sig = req.headers["stripe-signature"];
 
+    // Verify this request actually came from Stripe before trusting anything in it
     let event;
     try {
         event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
@@ -34,10 +35,12 @@ export const stripeWebhook = async(req, res) => {
             });
 
             if (!payment) {
+                // Data inconsistency, not something a retry fixes — log and move on
                 console.error(`No payment found for session ${session.id}`);
             } else if (payment.status !== "SUCCEEDED") {
-                // Verify amount matches — never trust blindly
+                // Verify amount matches what we expect — never trust Stripe's payload blindly
                 const expectedAmount = Math.round(Number(payment.amount) * 100);
+
                 if (session.amount_total !== expectedAmount) {
                     console.error(`Amount mismatch for order ${orderId}: expected ${expectedAmount}, got ${session.amount_total}`);
                 } else {
@@ -86,16 +89,14 @@ export const stripeWebhook = async(req, res) => {
 
         // Log this event so we never process it twice
         await prisma.webHookEvent.create({
-            data: {
-                stripeEventId: event.id,
-                type: event.type
-            }
+            data: { stripeEventId: event.id, type: event.type }
         });
 
         return res.status(200).json({ received: true });
 
     } catch (e) {
+        // Only truly unexpected failures land here — a 500 tells Stripe to retry later
         console.error("Webhook handler error:", e);
         return res.status(500).json({ received: false });
     }
-}
+};

@@ -1,5 +1,7 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import { errorHandler } from "./middleware/errorHandles.js";
+import { stripeWebhook } from "./controllers/webhookController.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -7,8 +9,6 @@ import categoreyRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
-
-import { stripeWebhook } from "./controllers/webhookController.js";
 
 const app = express();
 
@@ -28,6 +28,8 @@ app.use("/categories", categoreyRoutes);
 app.use("/products", productRoutes);
 app.use("/cart", cartRoutes);
 app.use("/orders", orderRoutes);
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
