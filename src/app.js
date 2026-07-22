@@ -5,7 +5,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import categoreyRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
-
+import cartRoutes from "./routes/cartRoutes.js";
 
 const app = express();
 
@@ -20,6 +20,7 @@ app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/categories", categoreyRoutes);
 app.use("/products", productRoutes);
+app.use("/cart", cartRoutes);
 
 const PORT = process.env.PORT || 3000;
 
