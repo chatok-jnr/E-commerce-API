@@ -1,35 +1,32 @@
 import multer from "multer";
+import { AppError } from "../utils/AppError.js";
 
 export const handleMulterError = (err, req, res, next) => {
-    if(err instanceof multer.MulterError) {
-        // Multer's own error file too large, too many files,wrong filed name, etc.
+    if (err instanceof multer.MulterError) {
+        // Multer's own errors: file too large, too many files, wrong field name, etc.
         let message = "File upload error";
 
-        switch(err.code) {
+        switch (err.code) {
             case "LIMIT_FILE_SIZE":
-                message: "FILE too large. Maximum sizes is 5MB";
+                message = "File too large. Maximum size is 5MB";
                 break;
 
             case "LIMIT_FILE_COUNT":
             case "LIMIT_UNEXPECTED_FILE":
-                message: "Too many files, or unexpected filed name.";
+                message = "Too many files, or unexpected field name.";
                 break;
-            default: 
+
+            default:
                 message = err.message;
         }
 
-        return res.status(400).json({
-            status:'failed',
-            message
-        });
+        return next(new AppError(message, 400));
     }
 
-    if(err) {
-        return res.status(400).json({
-            status:'failed',
-            message: err.message || "Invalid file upload"
-        });
+    if (err) {
+        // Any other upload-related error (e.g. thrown from a custom fileFilter)
+        return next(new AppError(err.message || "Invalid file upload", 400));
     }
 
     next();
-}
+};

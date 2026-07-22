@@ -1,8 +1,8 @@
 import crypto from "crypto";
+import { AppError } from "../utils/AppError.js";
 
 export const resolveCartOwner = (req, res, next) => {
-    try{
-
+    try {
         // Case 1: logged-in user (protect may or may not have already run —
         // check for req.user set by an earlier optional-auth check)
         if (req.user) {
@@ -24,17 +24,10 @@ export const resolveCartOwner = (req, res, next) => {
             });
         }
 
-        req.cartOwner = {sessionId};
+        req.cartOwner = { sessionId };
         next();
 
-    } catch(e) {
-        console.error(e);
-
-        return res.status(500).json({
-            status:'failed',
-            message:process.env.NODE_ENV === 'production'
-                ?"Internal server error"
-                : e.message
-        });
+    } catch (e) {
+        next(new AppError(e.message, 500));
     }
-}
+};
