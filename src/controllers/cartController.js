@@ -103,7 +103,63 @@ export const addToCart = async(req, res) => {
 
 export const updateCartItem = async (req, res) => {
     try{
+        const { productId } = req.params;
+        const { quantity } = req.body;
 
+        if (quantity === undefined || typeof quantity !== 'number' || quantity < 1) {
+            return res.status(400).json({
+                status: 'failed',
+                message: 'quantity must be a positive number'
+            });
+        }
+
+        const cartWhere = req.cartOwner.userId
+            ? { userId: req.cartOwner.userId }
+            : { sessionId: req.cartOwner.sessionId };
+
+        const cart = await prisma.cart.findFirst({ where: cartWhere });
+
+        if (!cart) {
+            return res.status(404).json({
+                status: 'failed',
+                message: 'Cart not found'
+            });
+        }
+
+        const cartItem = await prisma.cartItem.findUnique({
+            where: {
+                cartId_productId: {
+                    cartId: cart.id,
+                    productId
+                }
+            },
+            include: { product: true }
+        });
+
+        if (!cartItem) {
+            return res.status(404).json({
+                status: 'failed',
+                message: 'Item not found in cart'
+            });
+        }
+
+        if (cartItem.product.stock < quantity) {
+            return res.status(409).json({
+                status: 'failed',
+                message: `Only ${cartItem.product.stock} unit(s) in stock`
+            });
+        }
+
+         const updatedItem = await prisma.cartItem.update({
+            where: { id: cartItem.id },
+            data: { quantity }
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Cart item updated',
+            cartItem: updatedItem
+        });
     } catch(e) {
         console.error(e);
 
@@ -117,23 +173,101 @@ export const updateCartItem = async (req, res) => {
 }
 
 export const removeFromCart = async (req, res) => {
-    try{
+    try {
+        const { productId } = req.params;
 
-    } catch(e) {
+        const cartWhere = req.cartOwner.userId
+            ? { userId: req.cartOwner.userId }
+            : { sessionId: req.cartOwner.sessionId };
+
+        const cart = await prisma.cart.findFirst({ where: cartWhere });
+
+        if (!cart) {
+            return res.status(404).json({
+                status: 'failed',
+                message: 'Cart not found'
+            });
+        }
+
+        const cartItem = await prisma.cartItem.findUnique({
+            where: {
+                cartId_productId: {
+                    cartId: cart.id,
+                    productId
+                }
+            }
+        });
+
+        if (!cartItem) {
+            return res.status(404).json({
+                status: 'failed',
+                message: 'Item not found in cart'
+            });
+        }
+
+        await prisma.cartItem.delete({
+            where: { id: cartItem.id }
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Item removed from cart'
+        });
+
+    } catch (e) {
         console.error(e);
-
         return res.status(500).json({
-            status:'failed',
-            message:process.env.NODE_ENV === 'production'
-            ?"Internal server error"
-            :e.message
-        }); 
+            status: 'failed',
+            error: process.env.NODE_ENV === 'production' ? "Internal server error" : e.message
+        });
     }
-}
+};
 
 export const getCart = async (req, res) => {
     try{
+        const cartWhere = req.cartOwner.userId
+            ? { userId: req.cartOwner.userId }
+            : { sessionId: req.cartOwner.sessionId };
 
+        const cart = await prisma.cart.findFirst({
+            where: cartWhere,
+            include: {
+                items: {
+    include: {
+        product: {          // ← this level was missing
+            select: {
+                id: true,
+                name: true,
+                price: true,
+                stock: true,
+                images: {
+                    orderBy: { serialNo: 'asc' },
+                    take: 1
+                }
+            }
+        }
+    }
+}
+            }
+        });
+
+        if(!cart || cart.items.length === 0) {
+            return res.status(200).json({
+                status:'success',
+                cart: {items: []},
+                totalAmount: 0
+            });
+        }
+
+        const totalAmount = cart.items.reduce((sum, item) => {
+            return sum + (Number(item.product.price) * item.quantity);
+        }, 0);
+
+        return res.status(200).json({
+            status: 'success',
+            cart,
+            totalAmount
+        });
     } catch(e) {
         console.error(e);
 
@@ -147,16 +281,34 @@ export const getCart = async (req, res) => {
 }
 
 export const clearCart = async (req, res) => {
-    try{
+    try {
+        const cartWhere = req.cartOwner.userId
+            ? { userId: req.cartOwner.userId }
+            : { sessionId: req.cartOwner.sessionId };
 
-    } catch(e) {
+        const cart = await prisma.cart.findFirst({ where: cartWhere });
+
+        if (!cart) {
+            return res.status(404).json({
+                status: 'failed',
+                message: 'Cart not found'
+            });
+        }
+
+        await prisma.cartItem.deleteMany({
+            where: { cartId: cart.id }
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Cart cleared'
+        });
+
+    } catch (e) {
         console.error(e);
-
         return res.status(500).json({
-            status:'failed',
-            message:process.env.NODE_ENV === 'production'
-            ?"Internal server error"
-            :e.message
-        }); 
+            status: 'failed',
+            error: process.env.NODE_ENV === 'production' ? "Internal server error" : e.message
+        });
     }
-}
+};
