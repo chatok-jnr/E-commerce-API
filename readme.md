@@ -14,6 +14,7 @@ A practice project: a full-featured e-commerce REST API built with Express, Pris
 | 📁 File uploads | Multer (local disk storage) |
 | 💳 Payments | Stripe Checkout + Webhooks |
 | 🔑 Password hashing | bcrypt |
+| 🔑 Refresh Token hashing | SHA256 |
 
 ---
 
